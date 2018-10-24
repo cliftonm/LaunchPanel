@@ -115,7 +115,13 @@ namespace LaunchPanel
                 int y = 20;
 
                 Graphics gr = CreateGraphics();
-                int maxButtonWidth = (int)group.Buttons.Max(button => gr.MeasureString(button.Name, gb.Font).Width) + BUTTON_PADDING;
+                int maxButtonWidth = 100;
+
+                if (group.Buttons.Count > 0)
+                {
+                    maxButtonWidth = (int)group.Buttons.Max(button => gr.MeasureString(button.Name, gb.Font).Width) + BUTTON_PADDING;
+                }
+
                 // Center button in groupbox.
                 int x = (gb.Width - maxButtonWidth) / 2;
 
@@ -313,10 +319,9 @@ namespace LaunchPanel
         // An override is selected in one of the screens region buttons.
         protected void GetWindowRegion(LaunchButton button, out Point location, out Size size)
         {
-            Screen screen = selectedRegions[0].scr;
-
             if (selectedRegions.Count > 0)
             {
+                Screen screen = selectedRegions[0].scr;
                 int x1 = selectedRegions.Min(r => r.x);
                 int y1 = selectedRegions.Min(r => r.y);
                 int x2 = selectedRegions.Max(r => r.x);
@@ -406,8 +411,17 @@ namespace LaunchPanel
         {
             GetWindowRegion(button, out Point location, out Size size);
             bool moved = false;
-
             int tries = 5;
+            string path;
+
+            if (button.Path.StartsWith("\\\\"))     // network path
+            {
+                path = "file:" + button.Path.Replace("\\", "/").ToLower();
+            }
+            else
+            {
+                path = "file:///" + button.Path.Replace("\\", "/").ToLower();
+            }
 
             while (!moved && (--tries >= 0))
             {
@@ -419,7 +433,7 @@ namespace LaunchPanel
 
                     if (filename.ToLowerInvariant() == "explorer")
                     {
-                        if (window.LocationURL.ToLower() == "file:///" + button.Path.Replace("\\", "/"))
+                        if (window.LocationURL.ToLower() == path)
                         {
                             window.Left = location.X;
                             window.Top = location.Y;
@@ -441,7 +455,7 @@ namespace LaunchPanel
 
         private void Configure(Config config)
         {
-            new ConfigDlg(config).ShowDialog();
+            new ConfigDlg(config, CONFIG_FILENAME).ShowDialog();
         }
     }
 

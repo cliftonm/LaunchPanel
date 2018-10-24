@@ -1,6 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 
@@ -10,10 +10,10 @@ namespace LaunchPanel
 {
     public partial class ConfigDlg : Form
     {
-        public ConfigDlg(Config config)
+        public ConfigDlg(Config config, string fn)
         {
             InitializeComponent();
-            InitializeEvents(config);
+            InitializeEvents(config, fn);
             InitializeGrid(config);
 
             // If we don't do this, the first row, which is selected by default, doesn't fire the SelectionChanged event.
@@ -21,11 +21,11 @@ namespace LaunchPanel
             dgvGroups.Rows[0].Selected = true;
         }
 
-        protected void InitializeEvents(Config config)
+        protected void InitializeEvents(Config config, string fn)
         {
             dgvGroups.SelectionChanged += (_, __) => GroupSelected((Group)dgvGroups.SelectedRows.Cast<DataGridViewRow>().FirstOrDefault()?.DataBoundItem);
             dgvButtons.SelectionChanged += (_, __) => ButtonSelected((LaunchButton)dgvButtons.SelectedRows.Cast<DataGridViewRow>().FirstOrDefault()?.DataBoundItem);
-            btnSave.Click += (_, __) => Save(config);
+            btnSave.Click += (_, __) => Save(config, fn);
         }
 
         protected void InitializeGrid(Config config)
@@ -99,9 +99,10 @@ namespace LaunchPanel
             return editor;
         }
 
-        protected void Save(Config config)
+        protected void Save(Config config, string fn)
         {
             string json = JsonConvert.SerializeObject(config, Formatting.Indented);
+            File.WriteAllText(fn, json);
         }
     }
 }

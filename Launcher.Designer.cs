@@ -49,6 +49,7 @@
             this.Controls.Add(this.btnConfig);
             this.Name = "Launcher";
             this.Text = "Launch Control";
+            this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
             this.ResumeLayout(false);
 
         }
