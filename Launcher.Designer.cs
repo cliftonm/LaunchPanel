@@ -48,7 +48,7 @@
             this.ClientSize = new System.Drawing.Size(1089, 408);
             this.Controls.Add(this.btnConfig);
             this.Name = "Launcher";
-            this.Text = "Launch Control";
+            this.Text = "Launch Panel";
             this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
             this.ResumeLayout(false);
 

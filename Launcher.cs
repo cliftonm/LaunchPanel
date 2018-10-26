@@ -37,7 +37,7 @@ namespace LaunchPanel
         const int BUTTON_PADDING = 10;
         const int SCREEN_BUTTON_WIDTH = 30;
         const int SCREEN_BUTTON_HEIGHT = 30;
-        const int LAUNCH_BOXES_VERTICAL_START = SCREEN_BUTTON_HEIGHT * 3 + 30;
+        const int LAUNCH_BOXES_VERTICAL_START = SCREEN_BUTTON_HEIGHT * 3 + 70;
 
         public List<(int x, int y, Button btn, Screen scr)> selectedRegions = new List<(int x, int y, Button btn, Screen scr)>();
         public List<(int x, int y, Button btn, Screen scr)> screenButtons = new List<(int x, int y, Button btn, Screen scr)>();
@@ -79,6 +79,7 @@ namespace LaunchPanel
             screenBoxes.ForEach(sb =>
             {
                 CreateScreenGroupBoxButtons(sb.gb, sb.scr);
+                CreateScreenInfoLabels(sb.gb, sb.scr);
                 Controls.Add(sb.gb);
             });
         }
@@ -152,7 +153,7 @@ namespace LaunchPanel
             {
                 GroupBox gb = new GroupBox();
                 gb.Location = new Point(10 + (3 * SCREEN_BUTTON_WIDTH + 20) * idx, 10);
-                gb.Size = new Size(3 * SCREEN_BUTTON_WIDTH + 20, 3 * SCREEN_BUTTON_HEIGHT + 20);
+                gb.Size = new Size(3 * SCREEN_BUTTON_WIDTH + 20, 3 * SCREEN_BUTTON_HEIGHT + 60);
                 screenBoxes.Add((gb, screen));
             });
 
@@ -211,6 +212,28 @@ namespace LaunchPanel
                 gb.Controls.Add(btn);
                 screenButtons.Add((x, y, btn, screen));
             });
+        }
+
+        protected void CreateScreenInfoLabels(GroupBox gb, Screen screen)
+        {
+            Label lblLocation = new Label()
+            {
+                Text = screen.WorkingArea.Location.ToCoord(),
+                Location = new Point(5, SCREEN_BUTTON_HEIGHT * 3 + 15),
+                Size = new Size(gb.ClientRectangle.Width - 10, 20),
+                TextAlign = ContentAlignment.MiddleCenter,
+            };
+
+            Label lblSize = new Label()
+            {
+                Text = screen.WorkingArea.Size.ToCoord(),
+                Location = new Point(5, SCREEN_BUTTON_HEIGHT * 3 + 15 + lblLocation.Size.Height),
+                Size = new Size(gb.ClientRectangle.Width - 10, 20),
+                TextAlign = ContentAlignment.MiddleCenter,
+            };
+
+            gb.Controls.Add(lblLocation);
+            gb.Controls.Add(lblSize);
         }
 
         // Behavior is that 1 or 2 regions can be selected.  If a region is selected twice, any other region

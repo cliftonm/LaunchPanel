@@ -2,11 +2,27 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Drawing;
 
 namespace LaunchPanel
 {
     public static class ExtensionMethods
     {
+        public static string ToCoord(this Point p)
+        {
+            return (p.X + ", " + p.Y).Parens();
+        }
+
+        public static string ToCoord(this Size s)
+        {
+            return (s.Width + "," + s.Height).Parens();
+        }
+
+        public static string Parens(this string s)
+        {
+            return "(" + s + ")";
+        }
+
         public static bool IsNotEmpty(this string src)
         {
             return !String.IsNullOrWhiteSpace(src);
