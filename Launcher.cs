@@ -26,22 +26,49 @@ namespace LaunchPanel
 
         const string CONFIG_FILENAME = "config.json";
         const string EXPLORER_APP = "explorer.exe";
+        const int RETRY_MOVE_DELAY = 1000;      // ms
+
         const short SWP_NOMOVE = 0X2;
         const short SWP_NOSIZE = 1;
         const short SWP_NOZORDER = 0X4;
         const int SWP_SHOWWINDOW = 0x0040;
-        const int GROUP_BOX_VERTICAL_MARGIN = 30;
+
+        const int GROUPBOX_LEFT_MARGIN = 10;
+        const int GROUPBOX_VERTICAL_MARGIN = 30;
         const int GROUPBOX_HORIZONTAL_PADDING = 10;
+        const int GROUPBOX_VERTICAL_START = SCREEN_BUTTON_HEIGHT * 3 + SCREEN_BOX_HEIGHT + SCREEN_BOX_LAUNCH_BOX_SPACING;
+
         const int BUTTON_HEIGHT = 30;
+        const int BUTTON_EXTRA_SLOP = 10;       // For handling MeasureString innacuracies that cause button to thing it needs to wrap the text.
         const int BUTTON_VERTICAL_PADDING = 5;
-        const int BUTTON_PADDING = 10;
+        const int BUTTON_HORIZONTAL_PADDING = 20;
+
         const int SCREEN_BUTTON_WIDTH = 30;
         const int SCREEN_BUTTON_HEIGHT = 30;
-        const int LAUNCH_BOXES_VERTICAL_START = SCREEN_BUTTON_HEIGHT * 3 + 70;
+        const int SCREEN_BOX_HEIGHT = 60;
+        const int SCREEN_BOX_LAUNCH_BOX_SPACING = 10;
+
+        // Unicode chars from: https://www.mclean.net.nz/ucf/
+        // Arrows.  Diagonal arrows (particularly the down errors) look awful.
+        //string[] indicators = new string[]
+        //{
+        //    "\u2196", "\u2191", "\u2197",
+        //    "\u2190", "\u2327", "\u2192",
+        //    "\u2199", "\u2193", "\u2198"
+        //};
+        // Boxes for the corners, arrows for up,left,down,right looks a lot better!
+        readonly string[] indicators = new string[]
+        {
+            "\u25F0", "\u2191", "\u25F3",
+            "\u2190", "\u2327", "\u2192",
+            "\u25F1", "\u2193", "\u25F2"
+        };
 
         public List<(int x, int y, Button btn, Screen scr)> selectedRegions = new List<(int x, int y, Button btn, Screen scr)>();
         public List<(int x, int y, Button btn, Screen scr)> screenButtons = new List<(int x, int y, Button btn, Screen scr)>();
         public int selectedRegionIdx = 0;
+        public Config config;
+        public List<LauncherGroupBox> launcherGroupBoxes;
 
         public Launcher()
         {
@@ -51,31 +78,46 @@ namespace LaunchPanel
 
         protected void FormShown()
         {
-            Config config = InitializeForm();
-            SetupForm(config);
-            SetupEvents(config);
+            // Not for those that dislike ternary expressions!
+            config = File.Exists(CONFIG_FILENAME) ? LoadConfig() : new Config();
+            InitializeForm();
+            SetupLaunchers();
+            SetupEvents();
+            // Initialize size changed event AFTER the form is shown
+            // so the event doesn't fire when the form loads.
+            SizeChanged += (_, __) => Redraw();
         }
 
-        protected void SetupEvents(Config config)
+        protected void SetupEvents()
         {
-            btnConfig.Click += (_, __) => Configure(config);
+            btnConfig.Click += (_, __) => Configure();
         }
 
-        protected Config InitializeForm()
+        protected void InitializeForm()
         {
-            // Json json = Json.Create(File.ReadAllText(CONFIG_FILENAME));
+            List<(GroupBox gb, Screen scr)> screenBoxes = CreateScreenGroupBoxes();
+            CreateScreenBoxes(screenBoxes);
+        }
+
+        protected Config LoadConfig()
+        {
             string json = File.ReadAllText(CONFIG_FILENAME);
             Config cfg = Config.Load(json);
 
             return cfg;
         }
 
-        protected void SetupForm(Config config)
+        protected void SetupLaunchers()
         {
-            List<GroupBox> groupBoxes = CreateGroupBoxes(config);
-            CreateGroupButtons(groupBoxes, config);
-            groupBoxes.ForEach(gb => Controls.Add(gb));
-            List<(GroupBox gb, Screen scr)> screenBoxes = CreateScreenGroupBoxes();
+            launcherGroupBoxes = CreateGroupBoxes();
+            CreateGroupButtons(launcherGroupBoxes);
+            AdjustGroupBoxDimensions(launcherGroupBoxes);
+            AdjustGroupBoxButtonPositions(launcherGroupBoxes);
+            launcherGroupBoxes.ForEach(gb => Controls.Add(gb.GroupBox));
+        }
+
+        protected void CreateScreenBoxes(List<(GroupBox gb, Screen scr)> screenBoxes)
+        {
             screenBoxes.ForEach(sb =>
             {
                 CreateScreenGroupBoxButtons(sb.gb, sb.scr);
@@ -84,35 +126,57 @@ namespace LaunchPanel
             });
         }
 
-        protected List<GroupBox> CreateGroupBoxes(Config config)
+        protected void AdjustGroupBoxDimensions(List<LauncherGroupBox> groupBoxes)
         {
-            List<GroupBox> groupBoxes = new List<GroupBox>();
-            int numGroups = config.Groups.Count;
-            int gbWidth = ClientSize.Width / numGroups - GROUPBOX_HORIZONTAL_PADDING;
-            // int gbHeight = ClientSize.Height - GROUP_BOX_VERTICAL_MARGIN;
-            int x = GROUPBOX_HORIZONTAL_PADDING / 2;
+            int x = GROUPBOX_LEFT_MARGIN;
+
+            groupBoxes.ForEach(lgb =>
+            {
+                lgb.GroupBox.Left = x;
+                lgb.GroupBox.Width = lgb.RequiredWidth + BUTTON_HORIZONTAL_PADDING;        // Margins within groupbox
+                x += lgb.RequiredWidth + 30;                        // Padding between group boxes
+            });
+        }
+
+        protected void AdjustGroupBoxButtonPositions(List<LauncherGroupBox> groupBoxes)
+        {
+            groupBoxes.ForEach(lgb =>
+            {
+                lgb.Buttons.ForEach(btn =>
+                {
+                    // Center button in groupbox.
+                    btn.Left = (lgb.GroupBox.Width - btn.Width) / 2;
+                });
+            });
+        }
+
+        protected List<LauncherGroupBox> CreateGroupBoxes()
+        {
+            List<LauncherGroupBox> groupBoxes = new List<LauncherGroupBox>();
 
             config.Groups.ForEach(group =>
             {
                 int gbHeight = 
                     group.Buttons.Count() * BUTTON_HEIGHT +
                     (group.Buttons.Count() - 1) * BUTTON_VERTICAL_PADDING + 
-                    GROUP_BOX_VERTICAL_MARGIN;
+                    GROUPBOX_VERTICAL_MARGIN;
+
                 GroupBox gb = new GroupBox() { Text = group.Name };
-                gb.Location = new Point(x, GROUP_BOX_VERTICAL_MARGIN / 2 + LAUNCH_BOXES_VERTICAL_START);
-                gb.Size = new Size(gbWidth, gbHeight);
-                x += gbWidth + GROUPBOX_HORIZONTAL_PADDING;
-                groupBoxes.Add(gb);
+                // X and W are determined later.
+                gb.Location = new Point(0, GROUPBOX_VERTICAL_MARGIN / 2 + GROUPBOX_VERTICAL_START);
+                gb.Size = new Size(0, gbHeight);
+                groupBoxes.Add(new LauncherGroupBox() { GroupBox = gb });
             });
 
             return groupBoxes;
         }
 
-        protected void CreateGroupButtons(List<GroupBox> groupBoxes, Config config)
+        protected void CreateGroupButtons(List<LauncherGroupBox> groupBoxes)
         {
             config.Groups.ForEachWithIndex((group, idx) =>
             {
-                GroupBox gb = groupBoxes[idx];
+                LauncherGroupBox lgb = groupBoxes[idx];
+                GroupBox gb = lgb.GroupBox;
                 int y = 20;
 
                 Graphics gr = CreateGraphics();
@@ -120,18 +184,22 @@ namespace LaunchPanel
 
                 if (group.Buttons.Count > 0)
                 {
-                    maxButtonWidth = (int)group.Buttons.Max(button => gr.MeasureString(button.Name, gb.Font).Width) + BUTTON_PADDING;
+                    maxButtonWidth = (int)group.Buttons.Max(button => gr.MeasureString(button.Name, gb.Font).Width) + BUTTON_EXTRA_SLOP;
+                }
+                else
+                {
+                    maxButtonWidth = 100;           // Some arbitrary default.
                 }
 
-                // Center button in groupbox.
-                int x = (gb.Width - maxButtonWidth) / 2;
+                lgb.RequiredWidth = maxButtonWidth;
 
                 group.Buttons.ForEach(button =>
                 {
                     Button btn = new Button() { Text = button.Name, BackColor = button.BackColor, ForeColor = button.TextColor };
-                    btn.Location = new Point(x, y);
+                    btn.Location = new Point(0, y);
                     btn.Size = new Size(maxButtonWidth, BUTTON_HEIGHT);
                     gb.Controls.Add(btn);
+                    lgb.Buttons.Add(btn);
                     LauncherType lt = (button.Launcher == LauncherType.Undefined) ? group.Launcher : button.Launcher;
                     group.Launcher.Match(
                         (l => l == LauncherType.LaunchBrowser,  ___ => btn.Click += (_, __) => LaunchBrowser(button)),
@@ -153,7 +221,7 @@ namespace LaunchPanel
             {
                 GroupBox gb = new GroupBox();
                 gb.Location = new Point(10 + (3 * SCREEN_BUTTON_WIDTH + 20) * idx, 10);
-                gb.Size = new Size(3 * SCREEN_BUTTON_WIDTH + 20, 3 * SCREEN_BUTTON_HEIGHT + 60);
+                gb.Size = new Size(3 * SCREEN_BUTTON_WIDTH + 20, 3 * SCREEN_BUTTON_HEIGHT + SCREEN_BOX_HEIGHT);
                 screenBoxes.Add((gb, screen));
             });
 
@@ -183,22 +251,6 @@ namespace LaunchPanel
             // Another example: selecting TL and TC would display the window in the top 1/3 of the screen, with 1/2 width of the screen.
 
             Size buttonSize = new Size(SCREEN_BUTTON_WIDTH, SCREEN_BUTTON_HEIGHT);
-
-            // Unicode chars from: https://www.mclean.net.nz/ucf/
-            // Arrows.  Diagonal arrows (particularly the down errors) look awful.
-            //string[] indicators = new string[]
-            //{
-            //    "\u2196", "\u2191", "\u2197",
-            //    "\u2190", "\u2327", "\u2192",
-            //    "\u2199", "\u2193", "\u2198"
-            //};
-            // Boxes for the corners, arrows for up,left,down,right looks a lot better!
-            string[] indicators = new string[]
-            {
-                "\u25F0", "\u2191", "\u25F3",
-                "\u2190", "\u2327", "\u2192",
-                "\u25F1", "\u2193", "\u25F2"
-            };
 
             (3, 3).ForEach((x, y) =>
             {
@@ -251,7 +303,7 @@ namespace LaunchPanel
             {
                 // If already 2 regions selected, deselect them both and select the new region.
                 // If selecting regions on two different screens, deselect the first.
-                if (selectedRegions.Count == 2 || selectedRegions.Any(r=>r.scr != screen))
+                if (selectedRegions.Count >= 2 || selectedRegions.Any(r=>r.scr != screen))
                 {
                     DeselectAllRegionButtons();
                     SelectRegionButton(btn, x, y, screen);
@@ -423,7 +475,7 @@ namespace LaunchPanel
                 }
                 else
                 {
-                    Thread.Sleep(1000);
+                    Thread.Sleep(RETRY_MOVE_DELAY);
                 }
             }
 
@@ -437,12 +489,14 @@ namespace LaunchPanel
             int tries = 5;
             string path;
 
-            if (button.Path.StartsWith("\\\\"))     // network path
+            if (button.Path.StartsWith("\\\\"))     
             {
+                // network path
                 path = "file:" + button.Path.Replace("\\", "/").ToLower();
             }
             else
             {
+                // local path
                 path = "file:///" + button.Path.Replace("\\", "/").ToLower();
             }
 
@@ -469,18 +523,29 @@ namespace LaunchPanel
 
                 if (!moved)
                 {
-                    Thread.Sleep(1000);
+                    Thread.Sleep(RETRY_MOVE_DELAY);
                 }
             }
 
             return moved;
+        }                                                           
+
+        protected void Configure()
+        {
+            DialogResult ret = new ConfigDlg(config, CONFIG_FILENAME).ShowDialog();
+
+            if (ret == DialogResult.OK)
+            {
+                Redraw();
+            }
         }
 
-        private void Configure(Config config)
+        protected void Redraw()
         {
-            new ConfigDlg(config, CONFIG_FILENAME).ShowDialog();
+            // Preserves screen and config buttons and other non-launcher group box controls.
+            launcherGroupBoxes.ForEach(lgb => Controls.Remove(lgb.GroupBox));
+            SetupLaunchers();
+            SetupEvents();
         }
     }
-
-    // public class Json : ImmutableSemanticType<Json, string> { }
 }

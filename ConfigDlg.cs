@@ -103,6 +103,8 @@ namespace LaunchPanel
         {
             string json = JsonConvert.SerializeObject(config, Formatting.Indented);
             File.WriteAllText(fn, json);
+            DialogResult = DialogResult.OK;
+            Close();
         }
     }
 }
