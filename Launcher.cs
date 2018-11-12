@@ -369,14 +369,21 @@ namespace LaunchPanel
 
         protected void LaunchApplication(LaunchButton button)
         {
+            var handles = WndSearcher.GetWindowHandles();
+
             // http://csharphelper.com/blog/2016/12/set-another-applications-size-and-position-in-c/
             Process p = new Process();
             p.StartInfo.FileName = EXPLORER_APP;
             p.StartInfo.Arguments = button.Path;
             p.StartInfo.WindowStyle = ProcessWindowStyle.Normal;
+            p.StartInfo.WorkingDirectory = Path.GetFullPath(button.Path);
             p.Start();
-            MoveApplicationWindow(button);
+            MoveApplicationWindow(button, handles);
             DeselectAllRegionButtons();
+        }
+
+        protected void EnumerateWindows()
+        {
         }
 
         protected void LaunchExplorer(LaunchButton button)
@@ -457,16 +464,16 @@ namespace LaunchPanel
             }
         }
 
-        protected bool MoveApplicationWindow(LaunchButton button)
+        protected bool MoveApplicationWindow(LaunchButton button, List<IntPtr> handles)
         {
             GetWindowRegion(button, out Point location, out Size size);
             bool moved = false;
 
-            int tries = 10;
+            int tries = 30;
 
             while (!moved && (--tries >= 0))
             {
-                IntPtr ptr = WndSearcher.SearchForWindow("VsPos - Microsoft Visual Studio");
+                IntPtr ptr = WndSearcher.SearchForWindow(button.WindowCaption);
 
                 if (ptr != IntPtr.Zero)
                 {
@@ -475,6 +482,22 @@ namespace LaunchPanel
                 }
                 else
                 {
+                    /*
+                    var newHandles = WndSearcher.GetWindowHandles();
+                    var newWindows = newHandles.Where(h => !handles.Any(h2 => h2 == h));
+
+                    if (newWindows.Count() != 0)
+                    {
+                        newWindows.ForEach(nw =>
+                        {
+                            SetWindowPos(nw, 0, location.X, location.Y, size.Width, size.Height, SWP_SHOWWINDOW);
+                        });
+
+                        handles = newHandles;
+                        // moved = true;
+                    }
+                    */
+
                     Thread.Sleep(RETRY_MOVE_DELAY);
                 }
             }
@@ -545,7 +568,6 @@ namespace LaunchPanel
             // Preserves screen and config buttons and other non-launcher group box controls.
             launcherGroupBoxes.ForEach(lgb => Controls.Remove(lgb.GroupBox));
             SetupLaunchers();
-            SetupEvents();
         }
     }
 }
